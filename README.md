@@ -27,6 +27,7 @@ Ce dataset est adapté à un projet NoSQL car il contient des entités métier (
 - 
 - 
 
+
 Pour aller plus loin : 
-#### users
+- #### users
 Elles stockent les préférences des auditeurs, leurs favoris et leurs habitudes, ce qui permet de personnaliser l’expérience et d’offrir des recommandations pertinentes.
