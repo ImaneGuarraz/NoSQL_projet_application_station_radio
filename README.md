@@ -18,3 +18,15 @@ Ce dataset est adapté à un projet NoSQL car il contient des entités métier (
     - analyser les tendances
     - faire des recommandations
 
+
+## CHOIX DES COLLECTIONS 
+
+- 
+- 
+- 
+- 
+- 
+
+Pour aller plus loin : 
+#### users
+Elles stockent les préférences des auditeurs, leurs favoris et leurs habitudes, ce qui permet de personnaliser l’expérience et d’offrir des recommandations pertinentes.
