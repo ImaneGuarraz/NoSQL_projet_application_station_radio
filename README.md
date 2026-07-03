@@ -107,30 +107,16 @@ Ce choix permet une modélisation claire, flexible et adaptée aux requêtes mé
 | `artists` | 2 414 | Artiste associé aux morceaux |
 | `plays` | 9 672 | Événement de diffusion (station, morceau, horodatage) |
 
----
 
 ---
 
 ## 🧩 Diagramme Entité–Relation (ERD)
 
-```
-markets (_id)
-   │ 1
-   │ N
-   ▼
-stations (_id, market_id, format, genre, cume)
-   │ 1
-   │ N
-   ▼
-plays (_id, station_id, track_id, timestamp)
-   ▲ N
-   │ 1
-tracks (_id, title, duration, artist_ids[])
-   │ N
-   │ N
-   ▼
-artists (_id, name)
-```
+
+<img width="654" height="365" alt="Capture d’écran 2026-07-03 à 19 47 23" src="https://github.com/user-attachments/assets/5a75a1bd-9fe9-49a8-8f16-afab1dbc7f4c" />
+
+
+
 
 - `markets` 1—N `stations` (référence `market_id`)
 - `stations` 1—N `plays` (référence `station_id`)
