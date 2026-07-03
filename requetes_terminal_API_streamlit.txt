@@ -1,0 +1,7 @@
+# Terminal 1 — l'API
+pip install flask pymongo flask-cors
+python app.py
+
+# Terminal 2 — l'interface
+pip install streamlit requests pandas
+streamlit run streamlit_app.py

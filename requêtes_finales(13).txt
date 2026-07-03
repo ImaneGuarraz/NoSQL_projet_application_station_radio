@@ -1,0 +1,229 @@
+-identifier les radios qui ont un format particulier (ex country)
+
+db.stations.find({ genre: "Country" }, { name: 1, format: 1, _id: 0 })
+
+-Voir les morceaux les plus joués sur une station particulière.
+
+
+db.stations.aggregate([
+  { $match: { name: "Ke Buena 97.5 FM" } },
+  { $lookup: { from: "plays", localField: "_id", foreignField: "station_id", as: "stationPlays" } },
+  { $unwind: "$stationPlays" },
+  { $group: { _id: "$stationPlays.track_id", playCount: { $sum: 1 } } },
+  { $sort: { playCount: -1 } },
+  { $limit: 10 },
+  { $lookup: { from: "tracks", localField: "_id", foreignField: "_id", as: "track" } },
+  { $unwind: "$track" },
+  { $project: { _id: 0, title: "$track.title", album: "$track.album", playCount: 1 } }
+])
+
+-Analyser les genres dominants dans un etat.
+db.stations.aggregate([
+  { $lookup: { from: "markets", localField: "market_id", foreignField: "_id", as: "market" } },
+  { $unwind: "$market" },
+  { $match: { "market.state": "CA" } },  
+  { $group: { _id: "$genre", count: { $sum: 1 } } },
+  { $sort: { count: -1 } }
+])
+
+-Trouver les artistes les plus diffusés dans un marché donné (ville ou état)
+db.plays.aggregate([
+  { $lookup: { from: "stations", localField: "station_id", foreignField: "_id", as: "station" } },
+  { $unwind: "$station" },
+  { $lookup: { from: "markets", localField: "station.market_id", foreignField: "_id", as: "market" } },
+  { $unwind: "$market" },
+  { $match: { "market.city": "Los Angeles" } },  
+  { $lookup: { from: "tracks", localField: "track_id", foreignField: "_id", as: "track" } },
+  { $unwind: "$track" },
+  { $unwind: "$track.artist_ids" },
+  { $group: {
+      _id: "$track.artist_ids",
+      totalPlays: { $sum: 1 },
+      city: { $first: "$market.city" }   
+  } },
+  { $sort: { totalPlays: -1 } },
+  { $limit: 10 },
+  { $lookup: { from: "artists", localField: "_id", foreignField: "_id", as: "artist" } },
+  { $unwind: "$artist" },
+  { $project: { _id: 0, name: "$artist.name", totalPlays: 1, city: 1 } }
+])
+
+-Voir les artistes associés à un track.
+
+db.tracks.aggregate([
+  { $match: { title: "Last Night" } },  
+  { $lookup: {
+      from: "artists",
+      localField: "artist_ids",
+      foreignField: "_id",
+      as: "artists"
+  } },
+  { $project: {
+      _id: 0,
+      title: 1,
+      album: 1,
+      artists: "$artists.name"
+  } }
+])
+
+-Identifier les stations avec le plus grand nombre de plays.
+
+db.plays.aggregate([
+  { $group: {
+      _id: "$station_id",
+      totalPlays: { $sum: 1 }
+  } },
+  { $sort: { totalPlays: -1 } },
+  { $limit: 10 },
+  { $lookup: {
+      from: "stations",
+      localField: "_id",
+      foreignField: "_id",
+      as: "station"
+  } },
+  { $unwind: "$station" },
+  { $project: {
+      _id: 0,
+      call_letters: "$station.call_letters",
+      name: "$station.name",
+      format: "$station.format",
+      totalPlays: 1
+  } }
+])
+
+-Quel état a le plus de stations actives ?(count, sort)
+db.stations.aggregate([
+  { $lookup: { from: "markets", localField: "market_id", foreignField: "_id", as: "market" } },
+  { $unwind: "$market" },
+  { $group: { _id: "$market.state", stationCount: { $sum: 1 } } },
+  { $sort: { stationCount: -1 } },
+  { $limit: 1 }
+])
+
+Quel état a le plus de stations actives ?(count, sort)
+db.stations.aggregate([
+  { $lookup: {
+      from: "markets",
+      localField: "market_id",
+      foreignField: "_id",
+      as: "market"
+  } },
+  { $unwind: "$market" },
+  { $match: { "market.state": { $regex: /^[A-Z]{2}$/ } } },  // exclut les marchés non géographiques (ex: "states/US-NAT")
+  { $group: {
+      _id: "$market.state",
+      totalStations: { $sum: 1 }
+  } },
+  { $sort: { totalStations: -1 } },
+  { $limit: 1 }
+])
+
+-Marchés sans aucune station d'un genre donné
+db.markets.aggregate([
+  { $lookup: {
+      from: "stations",
+      let: { marketId: "$_id" },
+      pipeline: [
+        { $match: {
+            $expr: { $eq: ["$market_id", "$$marketId"] },
+            genre: "Classic Rock"   
+        } }
+      ],
+      as: "stationsInGenre"
+  } },
+  { $match: { stationsInGenre: { $size: 0 } } },  
+  { $project: { _id: 0, city: 1, state: 1, country: 1 } }
+])
+
+
+-Stations avec la plus grande diversité de morceaux diffusés vs celles qui tournent sur peu de titres:
+
+db.plays.aggregate([
+  { $group: {
+      _id: "$station_id",
+      totalPlays: { $sum: 1 },
+      uniqueTracks: { $addToSet: "$track_id" }
+  } },
+  { $project: {
+      _id: 0,
+      station_id: "$_id",
+      totalPlays: 1,
+      diversityCount: { $size: "$uniqueTracks" },
+      diversityRatio: { $divide: [{ $size: "$uniqueTracks" }, "$totalPlays"] }  // proche de 1 = très varié, proche de 0 = répétitif
+  } },
+  { $lookup: {
+      from: "stations",
+      localField: "station_id",
+      foreignField: "_id",
+      as: "station"
+  } },
+  { $unwind: "$station" },
+  { $project: {
+      station_id: 1,
+      call_letters: "$station.call_letters",
+      format: "$station.format",
+      totalPlays: 1,
+      diversityCount: 1,
+      diversityRatio: 1
+  } },
+  { $sort: { diversityRatio: -1 } }  // mets -1 pour "plus variées", 1 pour "tournent en boucle"
+])
+
+-Identification des artistes bénéficiant de la plus forte audience globale
+
+db.plays.aggregate([
+  { $lookup: { from: "tracks", localField: "track_id", foreignField: "_id", as: "track" } },
+  { $unwind: "$track" },
+  { $unwind: "$track.artist_ids" },
+  { $group: {
+      _id: "$track.artist_ids",
+      totalPlays: { $sum: 1 }
+  } },
+  { $sort: { totalPlays: -1 } },
+  { $limit: 10 },
+  { $lookup: {
+      from: "artists",
+      localField: "_id",
+      foreignField: "_id",
+      as: "artist"
+  } },
+  { $unwind: "$artist" },
+  { $project: {
+      _id: 0,
+      name: "$artist.name",
+      totalPlays: 1
+  } }
+])
+-Quel format de station (Pop, Country, Rock...) génère le plus d'audience cumulée à l'échelle nationale ?
+
+db.plays.aggregate([
+  { $lookup: { from: "stations", localField: "station_id", foreignField: "_id", as: "station" } },
+  { $unwind: "$station" },
+  { $group: { _id: "$station.format", totalPlays: { $sum: 1 } } },
+  { $sort: { totalPlays: -1 } }
+])
+
+-Morceaux les plus longs / les plus courts
+
+db.tracks.aggregate([
+  {
+    $facet: {
+      longest: [{ $sort: { duration: -1 } }, { $limit: 5 }, { $project: { _id: 0, title: 1, duration: 1 } }],
+      shortest: [{ $sort: { duration: 1 } }, { $limit: 5 }, { $project: { _id: 0, title: 1, duration: 1 } }]
+    }
+  }
+])
+
+-Quel format de station (Pop, Country, Rock...) génère le plus d'audience cumulée à l'échelle nationale ?
+
+db.plays.aggregate([
+  { $lookup: { from: "stations", localField: "station_id", foreignField: "_id", as: "station" } },
+  { $unwind: "$station" },
+  { $group: { _id: "$station.format", totalPlays: { $sum: 1 } } },
+  { $sort: { totalPlays: -1 } },
+  { $project: {
+      _id: 0,
+      format: "$_id",
+      totalPlays: 1
+  } }
+])
